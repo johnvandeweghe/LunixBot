@@ -1,10 +1,12 @@
 package lunixlabs;
 import robocode.*;
 import robocode.util.*;
-import java.util.List;
+
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.awt.geom.*;     // for Point2D's
+import java.util.List;
 //import java.awt.Color;
 
 // API help : http://robocode.sourceforge.net/docs/robocode/robocode/Robot.html
