@@ -102,6 +102,7 @@ public class LunixBot extends AdvancedRobot
         _enemyLocation = MathUtil.project(_myLocation, scannedAbsoluteBearing, e.getDistance());
  
         updateWaves();
+
         doSurfing();
  
 		// Let's process the waves now:
@@ -126,18 +127,17 @@ public class LunixBot extends AdvancedRobot
 				direction = 1;
 		}
 		double[] currentStats = stats[segmentDistance(e.getDistance())][segmentVelocity(e.getVelocity())][direction==-1?0:1]; // This seems silly, but I'm using it to
-        System.out.print(segmentDistance(e.getDistance()) + ", ");
-        System.out.print(segmentVelocity(e.getVelocity()));
-        System.out.println(Arrays.toString(currentStats));
+
 					    // show something else later
 						
 		int bestindex = Math.round(AIM_BINS/2);	// initialize it to be in the middle, guessfactor 0.
 		for (int i=0; i<currentStats.length; i++)
 			if (currentStats[bestindex] < currentStats[i])
 				bestindex = i;
-        System.out.println(bestindex);
 
-        double power = MathUtil.scale(getConfidence(currentStats, bestindex), 0, 1, .1, 3);
+        double power = e.getDistance() < 100 ? 3 : MathUtil.scale(getConfidence(currentStats, bestindex), 0, 1, .1, 3);
+
+        System.out.println(power);
 
         WaveBullet newWave = new WaveBullet(getX(), getY(), scannedAbsoluteBearing, power,
                 direction, getTime(), currentStats);
@@ -149,7 +149,7 @@ public class LunixBot extends AdvancedRobot
         double gunAdjust = Utils.normalRelativeAngle(
             scannedAbsoluteBearing - getGunHeadingRadians() + angleOffset);
         setTurnGunRightRadians(gunAdjust);
-        if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && (waves.size() == 0 || power > 1.5)&& setFireBullet(power) != null) {
+        if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(power) != null) {
             waves.add(newWave);
 		}
 	}
@@ -393,9 +393,9 @@ public class LunixBot extends AdvancedRobot
  
         double goAngle = MathUtil.absoluteBearing(surfWave.startLocation, _myLocation);
         if (dangerLeft < dangerRight) {
-            goAngle = wallSmoothing(_myLocation, goAngle - (Math.PI/2), -1);
+            goAngle = wallSmoothing(_myLocation, goAngle - (Math.PI/2 - .2), -1);
         } else {
-            goAngle = wallSmoothing(_myLocation, goAngle + (Math.PI/2), 1);
+            goAngle = wallSmoothing(_myLocation, goAngle + (Math.PI/2 - .2), 1);
         }
  
         setBackAsFront(this, goAngle);
@@ -404,7 +404,7 @@ public class LunixBot extends AdvancedRobot
     public void onPaint(java.awt.Graphics2D g) {
         g.setColor(java.awt.Color.red);
         for(int i = 0; i < enemyWaves.size(); i++){
-            BulletWave w = (BulletWave)(enemyWaves.get(i));
+            BulletWave w = enemyWaves.get(i);
             Point2D.Double center = w.startLocation;
 
             //int radius = (int)(w.distanceTraveled + w.bulletVelocity);
