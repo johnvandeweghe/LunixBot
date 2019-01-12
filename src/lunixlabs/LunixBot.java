@@ -28,8 +28,8 @@ public class LunixBot extends AdvancedRobot
     public static double _surfStats[] = new double[BINS];
     public Point2D.Double _myLocation;     // our bot's location
     public Point2D.Double _enemyLocation;  // enemy bot's location
- 
-    public ArrayList _enemyWaves;
+
+    private ArrayList<BulletWave> enemyWaves;
     public ArrayList<Integer> _surfDirections;
     public ArrayList<Double> _surfAbsBearings;
  
@@ -53,9 +53,9 @@ public class LunixBot extends AdvancedRobot
 	 */
 	public void run() {
 		// setColors(Color.red,Color.blue,Color.green); // body,gun,radar
-        _enemyWaves = new ArrayList();
-        _surfDirections = new ArrayList();
-        _surfAbsBearings = new ArrayList();
+        enemyWaves = new ArrayList<>();
+        _surfDirections = new ArrayList<>();
+        _surfAbsBearings = new ArrayList<>();
  
         setAdjustGunForRobotTurn(true);
         setAdjustRadarForGunTurn(true);
@@ -85,7 +85,14 @@ public class LunixBot extends AdvancedRobot
         double bulletPower = _oppEnergy - e.getEnergy();
         if (bulletPower < 3.01 && bulletPower > 0.09
             && _surfDirections.size() > 2) {
-            generateEnemyWave(bulletPower);
+            enemyWaves.add(new BulletWave(
+                    (Point2D.Double) _enemyLocation.clone(),
+                getTime() - 1,
+                    bulletPower,
+                    _surfAbsBearings.get(2),
+                    e.getDistance(),
+                    _surfDirections.get(2)
+            ));
         }
  
         _oppEnergy = e.getEnergy();
@@ -147,18 +154,6 @@ public class LunixBot extends AdvancedRobot
 		}
 	}
 
-    private void generateEnemyWave(double bulletPower) {
-        EnemyWave ew = new EnemyWave();
-        ew.fireTime = getTime() - 1;
-        ew.bulletVelocity = GameRulesUtil.bulletVelocity(bulletPower);
-        ew.distanceTraveled = GameRulesUtil.bulletVelocity(bulletPower);
-        ew.direction = ((Integer)_surfDirections.get(2)).intValue();
-        ew.directAngle = ((Double)_surfAbsBearings.get(2)).doubleValue();
-        ew.fireLocation = (Point2D.Double)_enemyLocation.clone(); // last tick
-
-        _enemyWaves.add(ew);
-    }
-
     private int segmentDistance(double distance){
         return (int)Math.min(Math.round(distance / 300), 19);
     }
@@ -189,19 +184,19 @@ public class LunixBot extends AdvancedRobot
     public void onHitByBullet(HitByBulletEvent e) {
         // If the _enemyWaves collection is empty, we must have missed the
         // detection of this wave somehow.
-        if (!_enemyWaves.isEmpty()) {
+        if (!enemyWaves.isEmpty()) {
             Point2D.Double hitBulletLocation = new Point2D.Double(
                 e.getBullet().getX(), e.getBullet().getY());
-            EnemyWave hitWave = null;
+            BulletWave hitWave = null;
  
             // look through the EnemyWaves, and find one that could've hit us.
-            for (Object _enemyWave : _enemyWaves) {
-                EnemyWave ew = (EnemyWave) _enemyWave;
+            for (Object _enemyWave : enemyWaves) {
+                BulletWave ew = (BulletWave) _enemyWave;
 
-                if (Math.abs(ew.distanceTraveled -
-                        _myLocation.distance(ew.fireLocation)) < 50
+                if (Math.abs(ew.getDistanceTraveled(getTime()) -
+                        _myLocation.distance(ew.startLocation)) < 50
                         && Math.abs(GameRulesUtil.bulletVelocity(e.getBullet().getPower())
-                        - ew.bulletVelocity) < 0.001) {
+                        - ew.getVelocity()) < 0.001) {
                     hitWave = ew;
                     break;
                 }
@@ -211,7 +206,7 @@ public class LunixBot extends AdvancedRobot
                 logHit(hitWave, hitBulletLocation);
  
                 // We can remove this wave now, of course.
-                _enemyWaves.remove(_enemyWaves.lastIndexOf(hitWave));
+                enemyWaves.remove(enemyWaves.lastIndexOf(hitWave));
             }
         }
     }
@@ -219,19 +214,19 @@ public class LunixBot extends AdvancedRobot
     public void onBulletHitBullet(BulletHitBulletEvent e) {
         // If the _enemyWaves collection is empty, we must have missed the
         // detection of this wave somehow.
-        if (!_enemyWaves.isEmpty()) {
+        if (!enemyWaves.isEmpty()) {
             Point2D.Double hitBulletLocation = new Point2D.Double(
                     e.getHitBullet().getX(), e.getHitBullet().getY());
-            EnemyWave hitWave = null;
+            BulletWave hitWave = null;
 
             // look through the EnemyWaves, and find one that could've hit us.
-            for (Object _enemyWave : _enemyWaves) {
-                EnemyWave ew = (EnemyWave) _enemyWave;
+            for (Object _enemyWave : enemyWaves) {
+                BulletWave ew = (BulletWave) _enemyWave;
 
-                if (Math.abs(ew.distanceTraveled -
-                        hitBulletLocation.distance(ew.fireLocation)) < 50
+                if (Math.abs(ew.getDistanceTraveled(getTime()) -
+                        hitBulletLocation.distance(ew.startLocation)) < 50
                         && Math.abs(GameRulesUtil.bulletVelocity(e.getHitBullet().getPower())
-                        - ew.bulletVelocity) < 0.001) {
+                        - ew.getVelocity()) < 0.001) {
                     hitWave = ew;
                     break;
                 }
@@ -241,7 +236,7 @@ public class LunixBot extends AdvancedRobot
                 logHit(hitWave, hitBulletLocation);
 
                 // We can remove this wave now, of course.
-                _enemyWaves.remove(_enemyWaves.lastIndexOf(hitWave));
+                enemyWaves.remove(enemyWaves.lastIndexOf(hitWave));
             }
         }
     }
@@ -273,29 +268,28 @@ public class LunixBot extends AdvancedRobot
             robot.setAhead(100);
         }
     }
-	public void updateWaves() {
-        for (int x = 0; x < _enemyWaves.size(); x++) {
-            EnemyWave ew = (EnemyWave)_enemyWaves.get(x);
- 
-            ew.distanceTraveled = (getTime() - ew.fireTime) * ew.bulletVelocity;
-            if (ew.distanceTraveled >
-                _myLocation.distance(ew.fireLocation) + 50) {
-                _enemyWaves.remove(x);
+
+	private void updateWaves() {
+        for (int x = 0; x < enemyWaves.size(); x++) {
+            BulletWave ew = enemyWaves.get(x);
+
+            if (ew.getDistanceTraveled(getTime()) >
+                _myLocation.distance(ew.startLocation) + 50) {
+                enemyWaves.remove(x);
                 x--;
             }
         }
     }
 	
-    public EnemyWave getClosestSurfableWave() {
+    private BulletWave getClosestSurfableWave() {
         double closestDistance = 50000; // I juse use some very big number here
-        EnemyWave surfWave = null;
- 
-        for (int x = 0; x < _enemyWaves.size(); x++) {
-            EnemyWave ew = (EnemyWave)_enemyWaves.get(x);
-            double distance = _myLocation.distance(ew.fireLocation)
-                - ew.distanceTraveled;
- 
-            if (distance > ew.bulletVelocity && distance < closestDistance) {
+        BulletWave surfWave = null;
+
+        for (BulletWave ew : enemyWaves) {
+            double distance = _myLocation.distance(ew.startLocation)
+                    - ew.getDistanceTraveled(getTime());
+
+            if (distance > ew.getVelocity() && distance < closestDistance) {
                 surfWave = ew;
                 closestDistance = distance;
             }
@@ -306,11 +300,11 @@ public class LunixBot extends AdvancedRobot
 	
     // Given the EnemyWave that the bullet was on, and the point where we
     // were hit, calculate the index into our stat array for that factor.
-    public static int getFactorIndex(EnemyWave ew, Point2D.Double targetLocation) {
-        double offsetAngle = (MathUtil.absoluteBearing(ew.fireLocation, targetLocation)
-            - ew.directAngle);
+    public static int getFactorIndex(BulletWave ew, Point2D.Double targetLocation) {
+        double offsetAngle = (MathUtil.absoluteBearing(ew.startLocation, targetLocation)
+            - ew.angle);
         double factor = Utils.normalRelativeAngle(offsetAngle)
-            / GameRulesUtil.maxEscapeAngle(ew.bulletVelocity) * ew.direction;
+            / GameRulesUtil.maxEscapeAngle(ew.getVelocity()) * ew.initialTargetDirection;
  
         return (int) MathUtil.limit(0,
             (factor * ((BINS - 1) / 2)) + ((BINS - 1) / 2),
@@ -319,7 +313,7 @@ public class LunixBot extends AdvancedRobot
 	
     // Given the EnemyWave that the bullet was on, and the point where we
     // were hit, update our stat array to reflect the danger in that area.
-    public void logHit(EnemyWave ew, Point2D.Double targetLocation) {
+    public void logHit(BulletWave ew, Point2D.Double targetLocation) {
         int index = getFactorIndex(ew, targetLocation);
 
 		readings++;
@@ -331,7 +325,7 @@ public class LunixBot extends AdvancedRobot
         }
     }
 	
-    public Point2D.Double predictPosition(EnemyWave surfWave, int direction) {
+    public Point2D.Double predictPosition(BulletWave surfWave, int direction) {
         Point2D.Double predictedPosition = (Point2D.Double)_myLocation.clone();
         double predictedVelocity = getVelocity();
         double predictedHeading = getHeadingRadians();
@@ -342,7 +336,7 @@ public class LunixBot extends AdvancedRobot
  
         do {    // the rest of these code comments are rozu's
             moveAngle =
-                wallSmoothing(predictedPosition, MathUtil.absoluteBearing(surfWave.fireLocation,
+                wallSmoothing(predictedPosition, MathUtil.absoluteBearing(surfWave.startLocation,
                 predictedPosition) + (direction * (Math.PI/2 - .2)), direction)
                 - predictedHeading;
             moveDir = 1;
@@ -372,9 +366,9 @@ public class LunixBot extends AdvancedRobot
  
             counter++;
  
-            if (predictedPosition.distance(surfWave.fireLocation) <
-                surfWave.distanceTraveled + (counter * surfWave.bulletVelocity)
-                + surfWave.bulletVelocity) {
+            if (predictedPosition.distance(surfWave.startLocation) <
+                surfWave.getDistanceTraveled(getTime()) + (counter * surfWave.getVelocity())
+                + surfWave.getVelocity()) {
                 intercepted = true;
             }
         } while(!intercepted && counter < 500);
@@ -382,7 +376,7 @@ public class LunixBot extends AdvancedRobot
         return predictedPosition;
     }
 	
-    public double checkDanger(EnemyWave surfWave, int direction) {
+    public double checkDanger(BulletWave surfWave, int direction) {
         int index = getFactorIndex(surfWave,
             predictPosition(surfWave, direction));
  
@@ -390,14 +384,14 @@ public class LunixBot extends AdvancedRobot
     }
  
     public void doSurfing() {
-        EnemyWave surfWave = getClosestSurfableWave();
+        BulletWave surfWave = getClosestSurfableWave();
  
         if (surfWave == null) { return; }
  
         double dangerLeft = checkDanger(surfWave, -1);
         double dangerRight = checkDanger(surfWave, 1);
  
-        double goAngle = MathUtil.absoluteBearing(surfWave.fireLocation, _myLocation);
+        double goAngle = MathUtil.absoluteBearing(surfWave.startLocation, _myLocation);
         if (dangerLeft < dangerRight) {
             goAngle = wallSmoothing(_myLocation, goAngle - (Math.PI/2), -1);
         } else {
@@ -409,16 +403,16 @@ public class LunixBot extends AdvancedRobot
 
     public void onPaint(java.awt.Graphics2D g) {
         g.setColor(java.awt.Color.red);
-        for(int i = 0; i < _enemyWaves.size(); i++){
-            EnemyWave w = (EnemyWave)(_enemyWaves.get(i));
-            Point2D.Double center = w.fireLocation;
+        for(int i = 0; i < enemyWaves.size(); i++){
+            BulletWave w = (BulletWave)(enemyWaves.get(i));
+            Point2D.Double center = w.startLocation;
 
             //int radius = (int)(w.distanceTraveled + w.bulletVelocity);
             //hack to make waves line up visually, due to execution sequence in robocode engine
             //use this only if you advance waves in the event handlers (eg. in onScannedRobot())
             //NB! above hack is now only necessary for robocode versions before 1.4.2
             //otherwise use:
-            int radius = (int)w.distanceTraveled;
+            int radius = (int)w.getDistanceTraveled(getTime());
 
             //Point2D.Double center = w.fireLocation;
             if(radius - 40 < center.distance(_myLocation))
