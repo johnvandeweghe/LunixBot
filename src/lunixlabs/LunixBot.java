@@ -2,12 +2,11 @@ package lunixlabs;
 import robocode.*;
 import robocode.util.*;
 
+import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-//import java.awt.Color;
 
 // API help : http://robocode.sourceforge.net/docs/robocode/robocode/Robot.html
 
@@ -16,27 +15,26 @@ import java.util.List;
  */
 public class LunixBot extends AdvancedRobot
 {
-	List<WaveBullet> waves = new ArrayList<WaveBullet>();
-    public static int BINS = 47;
-	public static int AIM_BINS = 31;
+    private ArrayList<BulletWave> myWaves = new ArrayList<>();
+    private static int BINS = 47;
+    private static int AIM_BINS = 31;
 	
-	static double[][][][] stats = new double[20][20][2][AIM_BINS]; // 31 is the number of unique GuessFactors we're using
+	private static double[][][] stats = new double[19][2][AIM_BINS]; // 31 is the number of unique GuessFactors we're using
 					  // Note: this must be odd number so we can get
 					  // GuessFactor 0 at middle.
-	int direction = 1;
+    private int direction = 1;
 
-    public static double _surfStats[] = new double[BINS];
-    public Point2D.Double _myLocation;     // our bot's location
-    public Point2D.Double _enemyLocation;  // enemy bot's location
+    private static double _surfStats[] = new double[BINS];
+    private Point2D.Double _myLocation;     // our bot's location
+    private Point2D.Double _enemyLocation;  // enemy bot's location
 
     private ArrayList<BulletWave> enemyWaves;
-    public ArrayList<Integer> _surfDirections;
-    public ArrayList<Double> _surfAbsBearings;
- 
-    public static double _oppEnergy = 100.0;
-	
-	private static int readings = 0;
-	private final int MAX_READINGS = 200;
+    private ArrayList<Integer> _surfDirections;
+    private ArrayList<Double> _surfAbsBearings;
+
+    private static double _oppEnergy = 100.0;
+
+    int missesSinceLastHit = 0;
 	
 	/** This is a rectangle that represents an 800x600 battle field,
     * used for a simple, iterative WallSmoothing method (by PEZ).
@@ -56,6 +54,8 @@ public class LunixBot extends AdvancedRobot
         enemyWaves = new ArrayList<>();
         _surfDirections = new ArrayList<>();
         _surfAbsBearings = new ArrayList<>();
+        myWaves = new ArrayList<>();
+        missesSinceLastHit = 0;
  
         setAdjustGunForRobotTurn(true);
         setAdjustRadarForGunTurn(true);
@@ -73,6 +73,7 @@ public class LunixBot extends AdvancedRobot
  
         double lateralVelocity = getVelocity()*Math.sin(e.getBearingRadians());
         double scannedAbsoluteBearing = e.getBearingRadians() + getHeadingRadians();
+        double enemyLateralVelocity = e.getVelocity() * Math.sin(e.getHeadingRadians() - scannedAbsoluteBearing);
  
         setTurnRadarRightRadians(Utils.normalRelativeAngle(scannedAbsoluteBearing
             - getRadarHeadingRadians()) * 2);
@@ -91,7 +92,10 @@ public class LunixBot extends AdvancedRobot
                     bulletPower,
                     _surfAbsBearings.get(2),
                     e.getDistance(),
-                    _surfDirections.get(2)
+                    _surfDirections.get(2),
+                    lateralVelocity,
+                    scannedAbsoluteBearing + Math.PI,
+                    false
             ));
         }
  
@@ -100,66 +104,92 @@ public class LunixBot extends AdvancedRobot
         // update after EnemyWave detection, because that needs the previous
         // enemy location as the source of the wave
         _enemyLocation = MathUtil.project(_myLocation, scannedAbsoluteBearing, e.getDistance());
- 
-        updateWaves();
+
+        cleanPassedWaves(enemyWaves, _myLocation, getTime());
 
         doSurfing();
- 
-		// Let's process the waves now:
-		for (int i=0; i < waves.size(); i++)
-		{
-			WaveBullet currentWave = (WaveBullet)waves.get(i);
-			if (currentWave.checkHit(_enemyLocation.x, _enemyLocation.y, getTime()))
-			{
-				waves.remove(currentWave);
-				i--;
-			}
-		}
- 
 
-		// don't try to figure out the direction they're moving 
-		// they're not moving, just use the direction we had before
-		if (e.getVelocity() != 0)
-		{
-			if (Math.sin(e.getHeadingRadians()-scannedAbsoluteBearing)*e.getVelocity() < 0)
-				direction = -1;
-			else
-				direction = 1;
-		}
-		double[] currentStats = stats[segmentDistance(e.getDistance())][segmentVelocity(e.getVelocity())][direction==-1?0:1]; // This seems silly, but I'm using it to
+        cleanPassedWaves(myWaves, _enemyLocation, getTime());
 
-					    // show something else later
-						
-		int bestindex = Math.round(AIM_BINS/2);	// initialize it to be in the middle, guessfactor 0.
-		for (int i=0; i<currentStats.length; i++)
-			if (currentStats[bestindex] < currentStats[i])
-				bestindex = i;
+        double power = e.getDistance() < 100 ? 3 : 1;//MathUtil.scale(getConfidence(currentStats, bestindex), 0, 1, .1, 3);
+        double angleOffset = predictAimGun(enemyLateralVelocity, e.getHeading(), scannedAbsoluteBearing, power);
 
-        double power = e.getDistance() < 100 ? 3 : MathUtil.scale(getConfidence(currentStats, bestindex), 0, 1, .1, 3);
+        if(missesSinceLastHit > 2) {
+            angleOffset = Math.PI*Math.random() - 1;
+            power = .1;
+            missesSinceLastHit = 0;
+            System.out.println("RANDO!");
+        }
 
-        System.out.println(power);
-
-        WaveBullet newWave = new WaveBullet(getX(), getY(), scannedAbsoluteBearing, power,
-                direction, getTime(), currentStats);
- 
-		// this should do the opposite of the math in the WaveBullet:
-		double guessfactor = (double)(bestindex - (currentStats.length - 1) / 2)
-                        / ((currentStats.length - 1) / 2);
-		double angleOffset = direction * guessfactor * newWave.maxEscapeAngle();
         double gunAdjust = Utils.normalRelativeAngle(
-            scannedAbsoluteBearing - getGunHeadingRadians() + angleOffset);
+                scannedAbsoluteBearing - getGunHeadingRadians() + angleOffset);
+
         setTurnGunRightRadians(gunAdjust);
+
         if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(power) != null) {
-            waves.add(newWave);
+            myWaves.add(new BulletWave(
+                    _myLocation,
+                    getTime(),
+                    power,
+                    angleOffset,
+                    e.getDistance(),
+                    (enemyLateralVelocity >= 0) ? 1 : -1,
+                    enemyLateralVelocity,
+                    scannedAbsoluteBearing,
+                    true
+            ));
 		}
 	}
+
+    private double predictAimGun(double targetVelocity, double targetHeading, double scannedAbsoluteBearing, double power) {
+        // don't try to figure out the direction they're moving
+        // they're not moving, just use the direction we had before
+        if (targetVelocity != 0)
+        {
+            if (targetVelocity < 0)
+                direction = -1;
+            else
+                direction = 1;
+        }
+
+        double[] currentStats = stats[segmentVelocity(targetVelocity)][direction==-1?0:1];
+
+        int bestindex = Math.round(AIM_BINS/2);	// initialize it to be in the middle, guessfactor 0.
+        for (int i=0; i<currentStats.length; i++)
+            if (currentStats[bestindex] < currentStats[i])
+                bestindex = i;
+
+        // this should do the opposite of the math in the WaveBullet:
+        double guessfactor = MathUtil.scale(bestindex, 0, AIM_BINS - 1, -1, 1);
+        //(double)(bestindex - (currentStats.length - 1) / 2)
+        //                        / ((currentStats.length - 1) / 2);
+
+        return direction * guessfactor * GameRulesUtil.maxEscapeAngle(Rules.getBulletSpeed(power));
+    }
+
+    private void cleanPassedWaves(
+            ArrayList<BulletWave> waves, Point2D.Double targetLocation, long time
+    ) {
+        // Let's process the waves now:
+        for (int i=0; i < waves.size(); i++)
+        {
+            BulletWave currentWave = waves.get(i);
+            if (currentWave.getDistanceTraveled(time)
+                    > currentWave.startLocation.distance(targetLocation) + 50)
+            {
+                onBulletMiss(currentWave, targetLocation);
+                waves.remove(i);
+                i--;
+            }
+        }
+    }
 
     private int segmentDistance(double distance){
         return (int)Math.min(Math.round(distance / 300), 19);
     }
 
     private int segmentVelocity(double velocity){
-        return (int)Math.min(Math.round(Math.abs(velocity) / 5), 19);
+        return (int)Math.round(velocity) + 8;
     }
 
     private double getConfidence(final double[] segment, final int bestIndex){
@@ -195,7 +225,7 @@ public class LunixBot extends AdvancedRobot
 
                 if (Math.abs(ew.getDistanceTraveled(getTime()) -
                         _myLocation.distance(ew.startLocation)) < 50
-                        && Math.abs(GameRulesUtil.bulletVelocity(e.getBullet().getPower())
+                        && Math.abs(Rules.getBulletSpeed(e.getBullet().getPower())
                         - ew.getVelocity()) < 0.001) {
                     hitWave = ew;
                     break;
@@ -225,7 +255,7 @@ public class LunixBot extends AdvancedRobot
 
                 if (Math.abs(ew.getDistanceTraveled(getTime()) -
                         hitBulletLocation.distance(ew.startLocation)) < 50
-                        && Math.abs(GameRulesUtil.bulletVelocity(e.getHitBullet().getPower())
+                        && Math.abs(Rules.getBulletSpeed(e.getHitBullet().getPower())
                         - ew.getVelocity()) < 0.001) {
                     hitWave = ew;
                     break;
@@ -240,7 +270,18 @@ public class LunixBot extends AdvancedRobot
             }
         }
     }
- 
+
+    @Override
+    public void onBulletHit(BulletHitEvent event) {
+        _oppEnergy = event.getEnergy();
+        missesSinceLastHit = 0;
+    }
+
+    @Override
+    public void onHitRobot(HitRobotEvent event) {
+        _oppEnergy = event.getEnergy();
+    }
+
     public double wallSmoothing(Point2D.Double botLocation, double angle, int orientation) {
         while (!_fieldRect.contains(MathUtil.project(botLocation, angle, WALL_STICK))) {
             angle += orientation*0.05;
@@ -266,18 +307,6 @@ public class LunixBot extends AdvancedRobot
                 robot.setTurnRightRadians(angle);
            }
             robot.setAhead(100);
-        }
-    }
-
-	private void updateWaves() {
-        for (int x = 0; x < enemyWaves.size(); x++) {
-            BulletWave ew = enemyWaves.get(x);
-
-            if (ew.getDistanceTraveled(getTime()) >
-                _myLocation.distance(ew.startLocation) + 50) {
-                enemyWaves.remove(x);
-                x--;
-            }
         }
     }
 	
@@ -310,18 +339,36 @@ public class LunixBot extends AdvancedRobot
             (factor * ((BINS - 1) / 2)) + ((BINS - 1) / 2),
             BINS - 1);
     }
-	
+
+    private void onBulletMiss(BulletWave bulletWave, Point2D.Double targetLocation) {
+        if(bulletWave.isMine) {
+            missesSinceLastHit++;
+            double[] currentSegment = stats[segmentVelocity(bulletWave.initialTargetVelocity)][bulletWave.initialTargetDirection == -1 ? 0 : 1];
+
+            double desiredDirection = MathUtil.absoluteBearing(bulletWave.startLocation, targetLocation);
+            double angleOffset = Utils.normalRelativeAngle(desiredDirection - bulletWave.initialTargetAbsBearing);
+            double guessFactor =
+                    Math.max(-1, Math.min(1, angleOffset / GameRulesUtil.maxEscapeAngle(Rules.getBulletSpeed(bulletWave.bulletPower)))) * bulletWave.initialTargetDirection;
+
+            int index = (int) MathUtil.scale(guessFactor, -1, 1, 0, AIM_BINS - 1);
+
+            for (int x = 0; x < currentSegment.length; x++) {
+                double newValue = 1.0 / (Math.pow(index - x, 2) + 1);
+                currentSegment[x] = MathUtil.approxRollingAverage(currentSegment[x], newValue);
+            }
+        }
+    }
+
     // Given the EnemyWave that the bullet was on, and the point where we
     // were hit, update our stat array to reflect the danger in that area.
     public void logHit(BulletWave ew, Point2D.Double targetLocation) {
         int index = getFactorIndex(ew, targetLocation);
 
-		readings++;
         for (int x = 0; x < BINS; x++) {
             // for the spot bin that we were hit on, add 1;
             // for the bins next to it, add 1 / 2;
             // the next one, add 1 / 5; and so on...
-            _surfStats[x] = MathUtil.rollingAvg(_surfStats[x], 1.0 / (Math.pow(index - x, 2) + 1), Math.min(MAX_READINGS, readings), 1);
+            _surfStats[x] = MathUtil.approxRollingAverage(_surfStats[x], 1.0 / (Math.pow(index - x, 2) + 1));
         }
     }
 	
@@ -335,31 +382,33 @@ public class LunixBot extends AdvancedRobot
         boolean intercepted = false;
  
         do {    // the rest of these code comments are rozu's
+            double distance = surfWave.startLocation.distance(predictedPosition);
             moveAngle =
                 wallSmoothing(predictedPosition, MathUtil.absoluteBearing(surfWave.startLocation,
-                predictedPosition) + (direction * (Math.PI/2 - .2)), direction)
+                predictedPosition) + (direction * (Math.PI/2 - (distance < 100 ? .8 : .05))), direction)
                 - predictedHeading;
+
             moveDir = 1;
- 
+
             if(Math.cos(moveAngle) < 0) {
                 moveAngle += Math.PI;
                 moveDir = -1;
             }
  
             moveAngle = Utils.normalRelativeAngle(moveAngle);
- 
+
             // maxTurning is built in like this, you can't turn more then this in one tick
             maxTurning = Math.PI/720d*(40d - 3d*Math.abs(predictedVelocity));
             predictedHeading = Utils.normalRelativeAngle(predictedHeading
                 + MathUtil.limit(-maxTurning, moveAngle, maxTurning));
- 
+
             // this one is nice ;). if predictedVelocity and moveDir have
             // different signs you want to breack down
             // otherwise you want to accelerate (look at the factor "2")
             predictedVelocity +=
                 (predictedVelocity * moveDir < 0 ? 2*moveDir : moveDir);
             predictedVelocity = MathUtil.limit(-8, predictedVelocity, 8);
- 
+
             // calculate the new predicted position
             predictedPosition = MathUtil.project(predictedPosition, predictedHeading,
                 predictedVelocity);
@@ -378,7 +427,7 @@ public class LunixBot extends AdvancedRobot
 	
     public double checkDanger(BulletWave surfWave, int direction) {
         int index = getFactorIndex(surfWave,
-            predictPosition(surfWave, direction));
+            direction != 0 ? predictPosition(surfWave, direction) : _myLocation);
  
         return _surfStats[index];
     }
@@ -389,39 +438,43 @@ public class LunixBot extends AdvancedRobot
         if (surfWave == null) { return; }
  
         double dangerLeft = checkDanger(surfWave, -1);
+        double dangerCenter = checkDanger(surfWave, 0);
         double dangerRight = checkDanger(surfWave, 1);
  
         double goAngle = MathUtil.absoluteBearing(surfWave.startLocation, _myLocation);
+
+        double distance = surfWave.startLocation.distance(_myLocation);
+
+        int direction;
         if (dangerLeft < dangerRight) {
-            goAngle = wallSmoothing(_myLocation, goAngle - (Math.PI/2 - .2), -1);
-        } else {
-            goAngle = wallSmoothing(_myLocation, goAngle + (Math.PI/2 - .2), 1);
+            if(dangerCenter < dangerLeft) {
+                return;
+            } else {
+                direction = -1;
+            }
         }
- 
+        else {
+            if(dangerCenter < dangerRight) {
+                return;
+            } else {
+                direction = 1;
+            }
+        }
+
+        goAngle = wallSmoothing(_myLocation, goAngle - (Math.PI/2 - (distance < 100 ? .8 : .05)), direction);
+
         setBackAsFront(this, goAngle);
     }
 
     public void onPaint(java.awt.Graphics2D g) {
         g.setColor(java.awt.Color.red);
-        for(int i = 0; i < enemyWaves.size(); i++){
-            BulletWave w = enemyWaves.get(i);
-            Point2D.Double center = w.startLocation;
-
-            //int radius = (int)(w.distanceTraveled + w.bulletVelocity);
-            //hack to make waves line up visually, due to execution sequence in robocode engine
-            //use this only if you advance waves in the event handlers (eg. in onScannedRobot())
-            //NB! above hack is now only necessary for robocode versions before 1.4.2
-            //otherwise use:
-            int radius = (int)w.getDistanceTraveled(getTime());
-
-            //Point2D.Double center = w.fireLocation;
-            if(radius - 40 < center.distance(_myLocation))
-               g.drawOval((int)(center.x - radius ), (int)(center.y - radius), radius*2, radius*2);
+        for (BulletWave w : enemyWaves) {
+            w.onPaint(g);
         }
 
         g.setColor(java.awt.Color.blue);
-        for(WaveBullet wave : waves){
-            wave.onPaint(g, getTime());
+        for (BulletWave w : myWaves) {
+            w.onPaint(g);
         }
     }
 
@@ -433,30 +486,51 @@ public class LunixBot extends AdvancedRobot
         //Initial Target Data
         final double initialTargetDistance;
         final int initialTargetDirection;
+        final double initialTargetVelocity;
+        final double initialTargetAbsBearing;
+        final boolean isMine;
 
-        BulletWave(Point2D.Double startLocation, long fireTime, double bulletPower, double angle, double initialTargetDistance, int initialTargetDirection) {
+        BulletWave(Point2D.Double startLocation, long fireTime, double bulletPower, double angle, double initialTargetDistance, int initialTargetDirection, double initialTargetVelocity, double initialTargetAbsBearing, boolean isMine) {
             this.startLocation = startLocation;
             this.fireTime = fireTime;
             this.bulletPower = bulletPower;
             this.angle = angle;
             this.initialTargetDistance = initialTargetDistance;
             this.initialTargetDirection = initialTargetDirection;
+            this.initialTargetVelocity = initialTargetVelocity;
+            this.initialTargetAbsBearing = initialTargetAbsBearing;
+            this.isMine = isMine;
         }
 
-        public final double getVelocity() {
-            return GameRulesUtil.bulletVelocity(bulletPower);
+        final double getVelocity() {
+            return Rules.getBulletSpeed(bulletPower);
         }
 
-        public final double getDistanceTraveled(long time) {
+        final double getDistanceTraveled(long time) {
             return getVelocity() * (time - fireTime);
+        }
+
+        void onPaint(Graphics2D g) {
+            Point2D.Double velocityEndpoint = MathUtil.project(startLocation, Utils.normalAbsoluteAngle(angle+direction*Math.PI/2), initialTargetVelocity);
+            g.drawLine((int)startLocation.x, (int)startLocation.y, (int)velocityEndpoint.x, (int)velocityEndpoint.y);
+
+//            Point2D.Double endpoint = MathUtil.project(startLocation, initialTargetAbsBearing, initialTargetDistance);
+//            g.drawLine((int)startLocation.x, (int)startLocation.y, (int)endpoint.x, (int)endpoint.y);
+
+            Point2D.Double endpoint1 = MathUtil.project(startLocation, initialTargetAbsBearing - GameRulesUtil.maxEscapeAngle(getVelocity())/2, initialTargetDistance);
+            g.drawLine((int)startLocation.x, (int)startLocation.y, (int)endpoint1.x, (int)endpoint1.y);
+
+            Point2D.Double endpoint2 = MathUtil.project(startLocation, initialTargetAbsBearing + GameRulesUtil.maxEscapeAngle(getVelocity())/2, initialTargetDistance);
+            g.drawLine((int)startLocation.x, (int)startLocation.y, (int)endpoint2.x, (int)endpoint2.y);
+
+            int radius = (int)getDistanceTraveled(getTime());
+
+            if(radius - 40 < initialTargetDistance)
+                g.drawOval((int)(startLocation.x - radius ), (int)(startLocation.y - radius), radius*2, radius*2);
         }
     }
 
     final static class GameRulesUtil {
-        static double bulletVelocity(double power) {
-            return (20.0 - (3.0*power));
-        }
-
         static double maxEscapeAngle(double velocity) {
             return Math.asin(8.0/velocity);
         }
@@ -483,6 +557,13 @@ public class LunixBot extends AdvancedRobot
 
         public static double rollingAvg(double value, double newEntry, double n, double weighting ) {
             return (value * n + newEntry * weighting)/(n + weighting);
+        }
+
+        static double approxRollingAverage (double avg, double new_sample) {
+            avg -= avg / 100;
+            avg += new_sample / 100;
+
+            return avg;
         }
     }
 }
