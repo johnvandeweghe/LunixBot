@@ -6,7 +6,7 @@ import java.awt.geom.Point2D;
 
 public final class MathUtils {
     @Contract(pure = true)
-    static double scale(final double valueIn, final double baseMin, final double baseMax, final double limitMin, final double limitMax) {
+    public static double scale(final double valueIn, final double baseMin, final double baseMax, final double limitMin, final double limitMax) {
         return ((limitMax - limitMin) * (valueIn - baseMin) / (baseMax - baseMin)) + limitMin;
     }
 

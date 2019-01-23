@@ -1,4 +1,4 @@
-package lunixlabs.lunixbot.Movement;
+package lunixlabs.lunixbot.movement;
 
 import lunixlabs.lunixbot.MathUtils;
 import org.jetbrains.annotations.Contract;

@@ -1,4 +1,4 @@
-package lunixlabs.lunixbot.Movement;
+package lunixlabs.lunixbot.movement;
 
 import robocode.Bullet;
 import robocode.ScannedRobotEvent;

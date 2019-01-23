@@ -16,8 +16,8 @@ public class BulletWave {
     //Initial Target Data
     final double initialTargetDistance;
     public final int initialTargetDirection;
-    final double initialTargetVelocity;
-    final double initialTargetAbsBearing;
+    public final double initialTargetVelocity;
+    public final double initialTargetAbsBearing;
     final boolean isMine;
 
     public BulletWave(Point2D.Double startLocation, long fireTime, double bulletPower, double angle, double initialTargetDistance, int initialTargetDirection, double initialTargetVelocity, double initialTargetAbsBearing, boolean isMine) {

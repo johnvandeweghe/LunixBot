@@ -1,4 +1,4 @@
-package lunixlabs.lunixbot.Movement;
+package lunixlabs.lunixbot.movement;
 
 import lunixlabs.lunixbot.BulletWave;
 import lunixlabs.lunixbot.MathUtils;
@@ -7,6 +7,7 @@ import robocode.Bullet;
 import robocode.Rules;
 import robocode.ScannedRobotEvent;
 
+import java.awt.*;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 
@@ -27,8 +28,6 @@ abstract class AbstractSurfer implements IMovement {
         surfDirections = new ArrayList<>();
         surfAbsBearings = new ArrayList<>();
         enemyEnergy = 100.0;
-        detectedBulletCount = 0;
-        hitBulletCount = 0;
     }
 
     @Override
@@ -49,7 +48,7 @@ abstract class AbstractSurfer implements IMovement {
         // enemy location as the source of the wave
         enemyLocation = MathUtils.project(myLocation, scannedAbsoluteBearing, event.getDistance());
 
-        cleanPassedWaves(enemyLocation, time);
+        cleanPassedWaves(myLocation, time);
     }
 
     protected void detectBullet(ScannedRobotEvent event, long time, double lateralVelocity, double scannedAbsoluteBearing) {
@@ -64,7 +63,7 @@ abstract class AbstractSurfer implements IMovement {
                     event.getDistance(),
                     surfDirections.get(2),
                     lateralVelocity,
-                    scannedAbsoluteBearing + Math.PI,
+                    surfAbsBearings.get(2),
                     false
             ));
             detectedBulletCount++;
@@ -212,7 +211,37 @@ abstract class AbstractSurfer implements IMovement {
     @Override
     public void logHit(Bullet bullet, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
         hitBulletCount++;
+
+        // If the _enemyWaves collection is empty, we must have missed the
+        // detection of this wave somehow.
+        if (!enemyWaves.isEmpty()) {
+            Point2D.Double hitBulletLocation = new Point2D.Double(
+                    bullet.getX(), bullet.getY());
+            BulletWave hitWave = null;
+
+            // look through the EnemyWaves, and find one that could've hit us.
+            for (Object _enemyWave : enemyWaves) {
+                BulletWave ew = (BulletWave) _enemyWave;
+
+                if (Math.abs(ew.getDistanceTraveled(time) -
+                        hitBulletLocation.distance(ew.startLocation)) < 50
+                        && Math.abs(Rules.getBulletSpeed(bullet.getPower())
+                        - ew.getVelocity()) < 0.001) {
+                    hitWave = ew;
+                    break;
+                }
+            }
+
+            if (hitWave != null) {
+                logHit(hitWave, bullet, myVelocity, myHeading, myLocation, time);
+
+                // We can remove this wave now, of course.
+                enemyWaves.remove(enemyWaves.lastIndexOf(hitWave));
+            }
+        }
     }
+
+    protected abstract void logHit(BulletWave bulletWave, Bullet bullet, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 
     @Override
     public double getDodgeRate() {
@@ -226,5 +255,13 @@ abstract class AbstractSurfer implements IMovement {
     @Override
     public void updateEnemyEnergy(double energy) {
         enemyEnergy = energy;
+    }
+
+    @Override
+    public void onPaint(Graphics2D g, long time) {
+        g.setColor(java.awt.Color.red);
+        for (BulletWave w : enemyWaves) {
+            w.onPaint(g, time);
+        }
     }
 }
