@@ -1,5 +1,6 @@
 package lunixlabs.lunixbot.targeting;
 
+import lunixlabs.lunixbot.BulletWave;
 import robocode.Bullet;
 import robocode.ScannedRobotEvent;
 
@@ -14,9 +15,13 @@ public interface ITargeting {
 
     void trackHit(Bullet bullet);
 
+    void trackBulletHitBullet(Bullet bullet);
+
+    void trackEnemyWave(BulletWave wave);
+
     double choosePower(Point2D.Double myLocation, double myEnergy);
 
-    double chooseTargetOffset(double bulletPower);
+    double chooseTargetOffset(double bulletPower, Point2D.Double myLocation);
 
     double getHitRate();
 

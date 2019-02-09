@@ -16,7 +16,7 @@ public class Utils {
     */
     private static Rectangle2D.Double _fieldRect
             = new Rectangle2D.Double(18, 18, 764, 564);
-    private static double WALL_STICK = 160;
+    private static double WALL_STICK = 36;
 
     @Contract(pure = true)
     public static double wallSmoothing(Point2D.Double botLocation, double angle, int orientation) {

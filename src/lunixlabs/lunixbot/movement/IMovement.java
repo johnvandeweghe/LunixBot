@@ -1,5 +1,6 @@
 package lunixlabs.lunixbot.movement;
 
+import lunixlabs.lunixbot.BulletWave;
 import robocode.Bullet;
 import robocode.ScannedRobotEvent;
 
@@ -8,7 +9,7 @@ import java.awt.geom.Point2D;
 public interface IMovement {
     void reset();
 
-    void track(ScannedRobotEvent event, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
+    BulletWave track(ScannedRobotEvent event, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 
     void updateEnemyEnergy(double energy);
 

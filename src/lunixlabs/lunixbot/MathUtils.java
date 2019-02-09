@@ -33,9 +33,9 @@ public final class MathUtils {
     }
 
     @Contract(pure = true)
-    public static double approxRollingAverage(double avg, double new_sample) {
-        avg -= avg / 100;
-        avg += new_sample / 100;
+    public static double approxRollingAverage(double avg, double new_sample, double inverseDecayRate) {
+        avg -= avg / inverseDecayRate;
+        avg += new_sample / inverseDecayRate;
 
         return avg;
     }

@@ -1,24 +1,44 @@
 package lunixlabs.lunixbot;
 import lunixlabs.lunixbot.movement.IMovement;
 import lunixlabs.lunixbot.movement.VisitCountSurfer;
-import lunixlabs.lunixbot.targeting.GuessFactorTargeting;
+import lunixlabs.lunixbot.targeting.HeadOnGun;
+import lunixlabs.lunixbot.targeting.RandomGun;
+import lunixlabs.lunixbot.targeting.VisitCountGun;
 import lunixlabs.lunixbot.targeting.ITargeting;
 import robocode.*;
 import robocode.util.Utils;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.util.Arrays;
 
+/**
+ * TODO:
+ * - Bullet Shadows
+ * - DC-PIF Gun
+ * - PIF surfing
+ */
 public class LunixBot extends AdvancedRobot
 {
     private static IMovement movement = new VisitCountSurfer();
 
-    private static ITargeting targeting = new GuessFactorTargeting();
+    private static ITargeting[] guns = new ITargeting[]{
+            new VisitCountGun(),
+            new RandomGun(),
+            new HeadOnGun()
+    };
+
+    private static int currentGun = 0;
 
     public void run() {
 		setColors(Color.pink,Color.magenta,Color.green, new Color(57, 255, 20), new Color(0,0,0,0)); // body,gun,radar
         movement.reset();
-        targeting.reset();
+
+        for(ITargeting gun : guns)
+            System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
+
+        for(ITargeting gun : guns)
+            gun.reset();
  
         setAdjustGunForRobotTurn(true);
         setAdjustRadarForGunTurn(true);
@@ -40,16 +60,28 @@ public class LunixBot extends AdvancedRobot
         setTurnRadarRightRadians(Utils.normalRelativeAngle(scannedAbsoluteBearing
             - getRadarHeadingRadians()) * 2);
 
-        movement.track(e, getVelocity(), getHeadingRadians(), myLocation, getTime());
+        BulletWave enemyWave = movement.track(e, getVelocity(), getHeadingRadians(), myLocation, getTime());
+        if(enemyWave != null) {
+            for(ITargeting gun : guns)
+                gun.trackEnemyWave(enemyWave);
+        }
 
         double goAngle = movement.suggestAngle(getVelocity(), getHeadingRadians(), myLocation, getTime());
 
         lunixlabs.lunixbot.movement.Utils.moveInDirection(this, goAngle);
 
-        targeting.track(e, myLocation, getVelocity(), getHeadingRadians(), getTime());
+        for(ITargeting gun : guns)
+            gun.track(e, myLocation, getVelocity(), getHeadingRadians(), getTime());
 
-        double power = targeting.choosePower(myLocation, getEnergy());
-        double angleOffset = targeting.chooseTargetOffset(power);
+
+        double[] powers = new double[guns.length];
+        double[] angleOffsets = new double[guns.length];
+
+        for (int i = 0; i < guns.length; i++) {
+            ITargeting gun = guns[i];
+            powers[i] = gun.choosePower(myLocation, getEnergy());
+            angleOffsets[i] = gun.chooseTargetOffset(powers[i], myLocation);
+        }
 
 //        if(missesSinceLastHit > 2) {
 //            angleOffset = Math.PI*Math.random() - 1;
@@ -59,12 +91,15 @@ public class LunixBot extends AdvancedRobot
 //        }
 
         double gunAdjust = Utils.normalRelativeAngle(
-                scannedAbsoluteBearing - getGunHeadingRadians() + angleOffset);
+                scannedAbsoluteBearing - getGunHeadingRadians() + angleOffsets[currentGun]);
 
         setTurnGunRightRadians(gunAdjust);
 
-        if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(power) != null) {
-            targeting.trackShot(power, angleOffset, getVelocity(), getHeadingRadians(), myLocation, getTime());
+        if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(powers[currentGun]) != null) {
+            for (int i = 0; i < guns.length; i++) {
+                ITargeting gun = guns[i];
+                gun.trackShot(powers[i], angleOffsets[i], getVelocity(), getHeadingRadians(), myLocation, getTime());
+            }
 		}
 	}
 
@@ -74,14 +109,16 @@ public class LunixBot extends AdvancedRobot
     }
 
     public void onBulletHitBullet(BulletHitBulletEvent e) {
+        for(ITargeting gun : guns)
+            gun.trackBulletHitBullet(e.getHitBullet());
         movement.logHit(e.getHitBullet(), getVelocity(), getHeadingRadians(), new Point2D.Double(getX(), getY()), getTime());
     }
 
     @Override
     public void onBulletHit(BulletHitEvent event) {
         movement.updateEnemyEnergy(event.getEnergy());
-        targeting.trackHit(event.getBullet());
-        System.out.println("Yeah! " + Math.round(targeting.getHitRate() * 10000d) / 100d + "%");
+        //guns[currentGun].trackHit(event.getBullet());
+        System.out.println("Yeah! " + Math.round(guns[currentGun].getHitRate() * 10000d) / 100d + "%");
     }
 
     @Override
@@ -92,7 +129,7 @@ public class LunixBot extends AdvancedRobot
     public void onPaint(java.awt.Graphics2D g) {
         movement.onPaint(g, getTime());
 
-        targeting.onPaint(g, getTime());
+        guns[currentGun].onPaint(g, getTime());
     }
 
 }

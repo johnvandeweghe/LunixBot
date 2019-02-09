@@ -5,6 +5,7 @@ import lunixlabs.lunixbot.MathUtils;
 import robocode.Bullet;
 import robocode.util.Utils;
 
+import java.awt.*;
 import java.awt.geom.Point2D;
 
 public class VisitCountSurfer extends AbstractSurfer {
@@ -36,7 +37,15 @@ public class VisitCountSurfer extends AbstractSurfer {
             // for the spot bin that we were hit on, add 1;
             // for the bins next to it, add 1 / 2;
             // the next one, add 1 / 5; and so on...
-            surfStats[x] = MathUtils.approxRollingAverage(surfStats[x], 1.0 / (Math.pow(index - x, 2) + 1));
+            surfStats[x] = MathUtils.approxRollingAverage(surfStats[x], 1.0 / (Math.pow(index - x, 2) + 1), 100);
+        }
+    }
+
+    @Override
+    public void onPaint(Graphics2D g, long time) {
+        g.setColor(java.awt.Color.red);
+        for (BulletWave w : enemyWaves) {
+            w.onPaint(g, time, surfStats);
         }
     }
 }

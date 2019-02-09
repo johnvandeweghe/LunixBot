@@ -31,7 +31,7 @@ abstract class AbstractSurfer implements IMovement {
     }
 
     @Override
-    public void track(ScannedRobotEvent event, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
+    public BulletWave track(ScannedRobotEvent event, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
 
         double lateralVelocity = myVelocity*Math.sin(event.getBearingRadians());
         double scannedAbsoluteBearing = event.getBearingRadians() + myHeading;
@@ -40,7 +40,7 @@ abstract class AbstractSurfer implements IMovement {
                 (lateralVelocity >= 0) ? 1 : -1);
         surfAbsBearings.add(0, scannedAbsoluteBearing + Math.PI);
 
-        detectBullet(event, time, lateralVelocity, scannedAbsoluteBearing);
+        BulletWave bulletWave = detectBullet(event, time, lateralVelocity, scannedAbsoluteBearing);
 
         enemyEnergy = event.getEnergy();
 
@@ -49,25 +49,29 @@ abstract class AbstractSurfer implements IMovement {
         enemyLocation = MathUtils.project(myLocation, scannedAbsoluteBearing, event.getDistance());
 
         cleanPassedWaves(myLocation, time);
+        return bulletWave;
     }
 
-    protected void detectBullet(ScannedRobotEvent event, long time, double lateralVelocity, double scannedAbsoluteBearing) {
+    protected BulletWave detectBullet(ScannedRobotEvent event, long time, double lateralVelocity, double scannedAbsoluteBearing) {
         double bulletPower = enemyEnergy - event.getEnergy();
         if (bulletPower <= Rules.MAX_BULLET_POWER && bulletPower >= Rules.MIN_BULLET_POWER
                 && surfDirections.size() > 2) {
-            enemyWaves.add(new BulletWave(
+            BulletWave bulletWave = new BulletWave(
                     (Point2D.Double) enemyLocation.clone(),
                     time - 1,
                     bulletPower,
-                    surfAbsBearings.get(2),
+                    0,
                     event.getDistance(),
                     surfDirections.get(2),
                     lateralVelocity,
-                    surfAbsBearings.get(2),
-                    false
-            ));
+                    surfAbsBearings.get(2)
+            );
+            enemyWaves.add(bulletWave);
             detectedBulletCount++;
+            return bulletWave;
         }
+
+        return null;
     }
 
     protected void cleanPassedWaves(
@@ -211,6 +215,8 @@ abstract class AbstractSurfer implements IMovement {
     @Override
     public void logHit(Bullet bullet, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
         hitBulletCount++;
+
+        enemyEnergy += bullet.getPower() * 3;
 
         // If the _enemyWaves collection is empty, we must have missed the
         // detection of this wave somehow.
