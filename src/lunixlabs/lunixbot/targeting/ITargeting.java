@@ -13,15 +13,13 @@ public interface ITargeting {
 
     void trackShot(double power, double angleOffset, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 
-    void trackHit(Bullet bullet);
-
     void trackBulletHitBullet(Bullet bullet);
 
     void trackEnemyWave(BulletWave wave);
 
     double choosePower(Point2D.Double myLocation, double myEnergy);
 
-    double chooseTargetOffset(double bulletPower, Point2D.Double myLocation);
+    double chooseGunAngle(double bulletPower, Point2D.Double myLocation, double absoluteBearingToEnemy);
 
     double getHitRate();
 

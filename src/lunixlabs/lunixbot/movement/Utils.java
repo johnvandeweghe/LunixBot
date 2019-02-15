@@ -16,13 +16,20 @@ public class Utils {
     */
     private static Rectangle2D.Double _fieldRect
             = new Rectangle2D.Double(18, 18, 764, 564);
-    private static double WALL_STICK = 36;
+    private static double WALL_STICK = 160;
 
     @Contract(pure = true)
     public static double wallSmoothing(Point2D.Double botLocation, double angle, int orientation) {
+        int counter = 0;
         while (!_fieldRect.contains(MathUtils.project(botLocation, angle, WALL_STICK))) {
             angle += orientation*0.05;
+            counter++;
+
+            if(counter >= 200) {
+                throw new RuntimeException("too much: " + botLocation.x + ":" + botLocation.y);
+            }
         }
+
         return angle;
     }
 

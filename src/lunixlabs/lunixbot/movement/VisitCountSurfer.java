@@ -11,7 +11,9 @@ import java.awt.geom.Point2D;
 public class VisitCountSurfer extends AbstractSurfer {
     private static int BINS = 47;
 
-    private double surfStats[] = new double[BINS];
+    private double[] surfStats = new double[BINS];
+
+    private int noWaveDirection = -1;
 
     @Override
     protected double checkDanger(BulletWave surfWave, Point2D.Double predictedPosition) {
@@ -22,7 +24,7 @@ public class VisitCountSurfer extends AbstractSurfer {
     // were hit, calculate the index into our stat array for that factor.
     private static int getFactorIndex(BulletWave surfWave, Point2D.Double targetLocation) {
         double offsetAngle = MathUtils.absoluteBearing(surfWave.startLocation, targetLocation)
-                - surfWave.angle;
+                - surfWave.initialTargetAbsBearing;
         double factor = Utils.normalRelativeAngle(offsetAngle)
                 / MathUtils.maxEscapeAngle(surfWave.getVelocity()) * surfWave.initialTargetDirection;
 
@@ -42,10 +44,24 @@ public class VisitCountSurfer extends AbstractSurfer {
     }
 
     @Override
+    protected Double suggestIdleAngle(double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
+        noWaveDirection *= Math.random() > .8 ? -1 : 1;
+        return lunixlabs.lunixbot.movement.Utils.wallSmoothing(myLocation, MathUtils.absoluteBearing(enemyLocation, myLocation) - (Math.PI/2 - .4), noWaveDirection);
+    }
+
+    @Override
     public void onPaint(Graphics2D g, long time) {
         g.setColor(java.awt.Color.red);
         for (BulletWave w : enemyWaves) {
             w.onPaint(g, time, surfStats);
         }
+
+        for (Point2D.Double aDouble1 : _dLeft)
+            if (aDouble1 != null)
+                g.fillOval((int) aDouble1.x, (int) aDouble1.y, 5, 5);
+        g.setColor(Color.green);
+        for (Point2D.Double aDouble : _dright)
+            if (aDouble != null)
+                g.fillOval((int) aDouble.x, (int) aDouble.y, 5, 5);
     }
 }

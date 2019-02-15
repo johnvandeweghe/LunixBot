@@ -13,7 +13,7 @@ import java.util.DoubleSummaryStatistics;
 public class BulletWave {
     //Bullet Data
     public final Point2D.Double startLocation;
-    final long fireTime;
+    public final long fireTime;
     public final double bulletPower;
     public final double angle;
     //Initial Target Data

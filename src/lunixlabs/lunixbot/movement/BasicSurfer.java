@@ -11,19 +11,19 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 
-abstract class AbstractSurfer implements IMovement {
+public class BasicSurfer implements IMovement {
     protected ArrayList<BulletWave> enemyWaves;
     protected ArrayList<Integer> surfDirections;
     protected ArrayList<Double> surfAbsBearings;
     protected Point2D.Double enemyLocation;
+    private static int BINS = 47;
+
+    private double[] surfStats = new double[BINS];
 
     protected double enemyEnergy = 100.0;
 
     private int detectedBulletCount = 0;
     private int hitBulletCount = 0;
-
-    protected Point2D.Double[] _dLeft;
-    protected Point2D.Double[] _dright;
 
     @Override
     public void reset() {
@@ -52,7 +52,8 @@ abstract class AbstractSurfer implements IMovement {
     }
 
     protected BulletWave detectBullet(double enemyEnergy, double enemyDistance, long time, double lateralVelocity, double scannedAbsoluteBearing) {
-        double bulletPower = this.enemyEnergy - enemyEnergy;
+        double bulletPower = Math.round((this.enemyEnergy - enemyEnergy)*100.0)/100.0;
+
         if (bulletPower <= Rules.MAX_BULLET_POWER && bulletPower >= Rules.MIN_BULLET_POWER
                 && surfDirections.size() > 2) {
             BulletWave bulletWave = new BulletWave(
@@ -94,22 +95,18 @@ abstract class AbstractSurfer implements IMovement {
         BulletWave surfWave = getClosestSurfableWave(myLocation, time);
 
         if (surfWave == null) {
-            return suggestIdleAngle(myVelocity, myHeading, myLocation, time);
+            return null;
         }
 
         return surfWave(surfWave, myVelocity, myHeading, myLocation, time);
 
     }
 
-    protected abstract Double suggestIdleAngle(double myVelocity, double myHeading, Point2D.Double myLocation, long time);
-
     protected double surfWave(BulletWave surfWave, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
         double goAngle = MathUtils.absoluteBearing(surfWave.startLocation, myLocation);
 
         double dangerLeft = checkDanger(surfWave, -1, myVelocity, myHeading, myLocation, time);
         double dangerRight = checkDanger(surfWave, 1, myVelocity, myHeading, myLocation, time);
-
-        double distance = surfWave.startLocation.distance(myLocation);
 
         int direction;
         if (dangerLeft < dangerRight) {
@@ -119,49 +116,46 @@ abstract class AbstractSurfer implements IMovement {
             direction = 1;
         }
 
-        if(distance < 100) {
-            System.out.println("Escape!");
-        }
-
-        //Widen the dodge circle to make sure to be moving away, especially when close
-        //Make sure that any changes to this is captured in the prediction code in danger checking
-        return Utils.wallSmoothing(myLocation, goAngle + direction * (Math.PI/2 - (distance < 100 ? .8 : .01)), direction);
+        return Utils.wallSmoothing(myLocation, goAngle + direction * Math.PI/2, direction);
     }
 
     /**
      * @return Get a danger value for a given direction (-1, 0, 1), bigger is more dangerous.
      */
     protected double checkDanger(BulletWave surfWave, int direction, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
-        Point2D.Double predictedPosition;
-        if (direction != 0) {
-            predictedPosition = predictPosition(surfWave, direction, myVelocity, myHeading, myLocation, time);
-        } else {
-            predictedPosition = myLocation;
-        }
+        Point2D.Double predictedPosition = predictPosition(surfWave, direction, myVelocity, myHeading, myLocation, time);
 
-        return checkDanger(surfWave, predictedPosition);
+        return surfStats[getFactorIndex(surfWave, predictedPosition)];
+    }
+
+    // Given the EnemyWave that the bullet was on, and the point where we
+    // were hit, calculate the index into our stat array for that factor.
+    private static int getFactorIndex(BulletWave surfWave, Point2D.Double targetLocation) {
+        double offsetAngle = MathUtils.absoluteBearing(surfWave.startLocation, targetLocation)
+                - surfWave.initialTargetAbsBearing;
+        double factor = robocode.util.Utils.normalRelativeAngle(offsetAngle)
+                / MathUtils.maxEscapeAngle(surfWave.getVelocity()) * surfWave.initialTargetDirection;
+
+        return (int) MathUtils.limit(0,
+                (factor * ((BINS - 1) / 2)) + ((BINS - 1) / 2),
+                BINS - 1);
     }
 
     @Contract(pure = true)
-    protected Point2D.Double predictPosition(BulletWave surfWave, int direction, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
+    protected static Point2D.Double predictPosition(BulletWave surfWave, int direction, double myVelocity, double myHeading, Point2D.Double myLocation, long time) {
         Point2D.Double predictedPosition = (Point2D.Double)myLocation.clone();
         double predictedVelocity = myVelocity;
         double predictedHeading = myHeading;
         double maxTurning, moveAngle, moveDir;
 
-        Point2D.Double[] path = new Point2D.Double[500];
-
         int counter = 0; // number of ticks in the future
         boolean intercepted = false;
 
         do {    // the rest of these code comments are rozu's
-            path[counter] = predictedPosition;
-            double distance = surfWave.startLocation.distance(predictedPosition);
-
             //This should match the surfWave method to ensure correctly predicted movement
             moveAngle =
                     Utils.wallSmoothing(predictedPosition, MathUtils.absoluteBearing(surfWave.startLocation,
-                            predictedPosition) + (direction * (Math.PI/2 - (distance < 100 ? .8 : .01))), direction)
+                            predictedPosition) + (direction * Math.PI/2), direction)
                             - predictedHeading;
 
             moveDir = 1;
@@ -198,16 +192,8 @@ abstract class AbstractSurfer implements IMovement {
             }
         } while(!intercepted && counter < 500);
 
-        if(direction == -1) {
-            _dLeft = path;
-        } else {
-            _dright = path;
-        }
-
         return predictedPosition;
     }
-
-    protected abstract double checkDanger(BulletWave surfWave, Point2D.Double predictedPosition);
 
     private BulletWave getClosestSurfableWave(Point2D.Double myLocation, long time) {
         double closestDistance = 50000; // I juse use some very big number here
@@ -252,15 +238,19 @@ abstract class AbstractSurfer implements IMovement {
             }
 
             if (hitWave != null) {
-                logHit(hitWave, bullet, myVelocity, myHeading, myLocation, time);
+                int index = getFactorIndex(hitWave, new Point2D.Double(bullet.getX(), bullet.getY()));
+                for (int x = 0; x < BINS; x++) {
+                    // for the spot bin that we were hit on, add 1;
+                    // for the bins next to it, add 1 / 2;
+                    // the next one, add 1 / 5; and so on...
+                    surfStats[x] = 1.0 / (Math.pow(index - x, 2) + 1);
+                }
 
                 // We can remove this wave now, of course.
                 enemyWaves.remove(enemyWaves.lastIndexOf(hitWave));
             }
         }
     }
-
-    protected abstract void logHit(BulletWave bulletWave, Bullet bullet, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 
     @Override
     public double getDodgeRate() {
@@ -278,7 +268,7 @@ abstract class AbstractSurfer implements IMovement {
 
     @Override
     public void onPaint(Graphics2D g, long time) {
-        g.setColor(java.awt.Color.red);
+        g.setColor(Color.pink);
         for (BulletWave w : enemyWaves) {
             w.onPaint(g, time);
         }

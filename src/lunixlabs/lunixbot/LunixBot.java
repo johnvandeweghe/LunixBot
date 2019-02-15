@@ -1,16 +1,14 @@
 package lunixlabs.lunixbot;
+import lunixlabs.lunixbot.movement.BasicSurfer;
 import lunixlabs.lunixbot.movement.IMovement;
 import lunixlabs.lunixbot.movement.VisitCountSurfer;
-import lunixlabs.lunixbot.targeting.HeadOnGun;
-import lunixlabs.lunixbot.targeting.RandomGun;
-import lunixlabs.lunixbot.targeting.VisitCountGun;
-import lunixlabs.lunixbot.targeting.ITargeting;
+import lunixlabs.lunixbot.targeting.*;
 import robocode.*;
 import robocode.util.Utils;
 
 import java.awt.*;
+import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.util.Arrays;
 
 /**
  * TODO:
@@ -25,10 +23,13 @@ public class LunixBot extends AdvancedRobot
     private static ITargeting[] guns = new ITargeting[]{
             new VisitCountGun(),
             new RandomGun(),
-            new HeadOnGun()
+            new HeadOnGun(),
+            new AntiMovementGun(new BasicSurfer())
     };
 
-    private static int currentGun = 0;
+    private static int currentGun = 1;
+
+    private double _goAngle;
 
     public void run() {
 		setColors(Color.pink,Color.magenta,Color.green, new Color(57, 255, 20), new Color(0,0,0,0)); // body,gun,radar
@@ -66,13 +67,15 @@ public class LunixBot extends AdvancedRobot
                 gun.trackEnemyWave(enemyWave);
         }
 
-        double goAngle = movement.suggestAngle(getVelocity(), getHeadingRadians(), myLocation, getTime());
+        Double goAngle = movement.suggestAngle(getVelocity(), getHeadingRadians(), myLocation, getTime());
 
-        lunixlabs.lunixbot.movement.Utils.moveInDirection(this, goAngle);
+        if(goAngle != null) {
+            this._goAngle = goAngle;
+            lunixlabs.lunixbot.movement.Utils.moveInDirection(this, goAngle);
+        }
 
         for(ITargeting gun : guns)
             gun.track(e, myLocation, getVelocity(), getHeadingRadians(), getTime());
-
 
         double[] powers = new double[guns.length];
         double[] angleOffsets = new double[guns.length];
@@ -80,18 +83,27 @@ public class LunixBot extends AdvancedRobot
         for (int i = 0; i < guns.length; i++) {
             ITargeting gun = guns[i];
             powers[i] = gun.choosePower(myLocation, getEnergy());
-            angleOffsets[i] = gun.chooseTargetOffset(powers[i], myLocation);
+            angleOffsets[i] = gun.chooseGunAngle(powers[i], myLocation, scannedAbsoluteBearing);
         }
 
-//        if(missesSinceLastHit > 2) {
-//            angleOffset = Math.PI*Math.random() - 1;
-//            power = .1;
-//            missesSinceLastHit = 0;
-//            System.out.println("RANDO!");
-//        }
+        if(getEnergy() > 80) {
+            if(currentGun != 1) {
+                System.out.println("Switching to Random gun.");
+            }
+            currentGun = 1;
+        } else {
+            for (int i = 0; i < guns.length; i++) {
+                if (guns[i].getHitRate() > guns[currentGun].getHitRate()) {
+                    currentGun = i;
+                    for(ITargeting gun : guns)
+                        System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
+                    System.out.println("Switching to gun #" + i);
+                }
+            }
+        }
 
         double gunAdjust = Utils.normalRelativeAngle(
-                scannedAbsoluteBearing - getGunHeadingRadians() + angleOffsets[currentGun]);
+                angleOffsets[currentGun] - getGunHeadingRadians());
 
         setTurnGunRightRadians(gunAdjust);
 
@@ -130,6 +142,11 @@ public class LunixBot extends AdvancedRobot
         movement.onPaint(g, getTime());
 
         guns[currentGun].onPaint(g, getTime());
+        //guns[3].onPaint(g, getTime());
+
+        Point2D.Double wallStick = MathUtils.project(new Point2D.Double(getX(), getY()), _goAngle, 160);
+
+        g.draw(new Line2D.Double(getX(), getY(), wallStick.x, wallStick.y));
     }
 
 }

@@ -1,6 +1,7 @@
 package lunixlabs.lunixbot.movement;
 
 import lunixlabs.lunixbot.BulletWave;
+import org.jetbrains.annotations.Nullable;
 import robocode.Bullet;
 import robocode.ScannedRobotEvent;
 
@@ -13,7 +14,8 @@ public interface IMovement {
 
     void updateEnemyEnergy(double energy);
 
-    double suggestAngle(double myVelocity, double myHeading, Point2D.Double myLocation, long time);
+    @Nullable
+    Double suggestAngle(double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 
     void logHit(Bullet bullet, double myVelocity, double myHeading, Point2D.Double myLocation, long time);
 

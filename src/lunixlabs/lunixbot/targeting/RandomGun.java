@@ -2,6 +2,7 @@ package lunixlabs.lunixbot.targeting;
 
 import lunixlabs.lunixbot.BulletWave;
 
+import java.awt.*;
 import java.awt.geom.Point2D;
 
 public class RandomGun extends AbstractGuessFactorGun {
@@ -18,5 +19,19 @@ public class RandomGun extends AbstractGuessFactorGun {
     @Override
     protected void trackPass(BulletWave bulletWave, double guessFactor) {
         //done!
+    }
+
+    @Override
+    public double choosePower(Point2D.Double myLocation, double myEnergy) {
+        //This is guaranteed to not be very good, so lets not waste energy.
+        return .1;
+    }
+
+    @Override
+    public void onPaint(Graphics2D g, long time) {
+        g.setColor(Color.yellow);
+        for (BulletWave w : myWaves) {
+            w.onPaint(g, time);
+        }
     }
 }

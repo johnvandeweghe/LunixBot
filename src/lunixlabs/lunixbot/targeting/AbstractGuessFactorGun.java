@@ -11,7 +11,7 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 
-public abstract class AbstractGuessFactorGun implements ITargeting {
+abstract class AbstractGuessFactorGun implements ITargeting {
     protected ArrayList<BulletWave> myWaves = new ArrayList<>();
     //TODO: decay this somehow so we can see how well we are doing locally, not overall
     //We learn, which means this is only for a while, we can keep both, but should also have a per round accuracy, or just a rolling avg
@@ -73,9 +73,14 @@ public abstract class AbstractGuessFactorGun implements ITargeting {
         double desiredDirection = MathUtils.absoluteBearing(bulletWave.startLocation, targetLocation);
         double angleOffset = Utils.normalRelativeAngle(desiredDirection - bulletWave.initialTargetAbsBearing);
 
-        if(Math.abs(Utils.normalRelativeAngle(angleOffset - bulletWave.angle)) < 0.06) {
-            trackHit();
+        //half of one bot
+        double toleranceAngle = Math.atan2(36.0, bulletWave.startLocation.distance(targetLocation));
+
+        if(Math.abs(Utils.normalRelativeAngle(angleOffset - bulletWave.angle)) < toleranceAngle) {
+            trackHit(bulletWave);
         }
+
+
 
         double guessFactor =
                 Math.max(-1, Math.min(1,
@@ -90,26 +95,22 @@ public abstract class AbstractGuessFactorGun implements ITargeting {
         shotsFired++;
         shotsFiredRound++;
 
+        double initialTargetAbsBearing = MathUtils.absoluteBearing(myLocation, enemyLocation);
         myWaves.add(new BulletWave(
                 myLocation,
                 time,
                 power,
-                angleOffset,
+                Utils.normalRelativeAngle(angleOffset - initialTargetAbsBearing),
                 myLocation.distance(enemyLocation),
                 (enemyLateralVelocity >= 0) ? 1 : -1,
                 enemyLateralVelocity,
-                MathUtils.absoluteBearing(myLocation, enemyLocation)
+                initialTargetAbsBearing
         ));
     }
 
-    protected void trackHit() {
+    protected void trackHit(BulletWave bulletWave) {
         shotsHit++;
         shotsHitRound++;
-    }
-
-    @Override
-    public void trackHit(Bullet bullet) {
-        trackHit();
     }
 
     @Override
@@ -118,18 +119,7 @@ public abstract class AbstractGuessFactorGun implements ITargeting {
     }
 
     @Override
-    public double choosePower(Point2D.Double myLocation, double myEnergy) {
-        if (enemyLastEnergy == 0) return 3;
-        if (getCollisionRate() > .8) return 3;
-        else if(myLocation.distance(enemyLocation) < 150) return 3;
-        else if(myEnergy < 10) return .1;
-        else if(getHitRate() > .5) return 3;
-        else if(getHitRate() < .1) return .1;
-        else return MathUtils.scale(getHitRate(), .1, .5, .5, enemyLastBulletPower - .05);
-    }
-
-    @Override
-    public double chooseTargetOffset(double bulletPower, Point2D.Double myLocation) {
+    public double chooseGunAngle(double bulletPower, Point2D.Double myLocation, double absoluteBearingToEnemy) {
         // don't try to figure out the direction they're moving
         // they're not moving, just use the direction we had before
         if (enemyLateralVelocity != 0)
@@ -140,18 +130,9 @@ public abstract class AbstractGuessFactorGun implements ITargeting {
                 enemyDirection = 1;
         }
 
-        if(enemyLastEnergy == 0) {
-            return 0;
-        }
-
-        if(getCollisionRate() > .8) {
-            System.out.println("Bullet shielding detected.");
-            return .01;
-        }
-
         double guessfactor = chooseGuessFactor(bulletPower, myLocation);
 
-        return enemyDirection * guessfactor * MathUtils.maxEscapeAngle(Rules.getBulletSpeed(bulletPower));
+        return Utils.normalAbsoluteAngle(absoluteBearingToEnemy + enemyDirection * guessfactor * MathUtils.maxEscapeAngle(Rules.getBulletSpeed(bulletPower)));
     }
 
     @Override
@@ -159,7 +140,7 @@ public abstract class AbstractGuessFactorGun implements ITargeting {
         shotsCollided++;
     }
 
-    private double getCollisionRate() {
+    protected double getCollisionRate() {
         return shotsFiredRound == 0 ? 0 : shotsCollided / (double)shotsFiredRound;
     }
 

@@ -36,6 +36,16 @@ public class VisitCountGun extends AbstractGuessFactorGun {
 
     @Override
     protected double chooseGuessFactor(double bulletPower, Point2D.Double myLocation) {
+        //If they are disabled just shoot them
+        if(enemyLastEnergy == 0) {
+            return 0;
+        }
+
+        //If they are bullet shielding shoot off center by a small amount
+        if(getCollisionRate() > .8) {
+            return .01;
+        }
+
         double distance = enemyLocation.distance(myLocation);
         //double[] currentStats = stats[segmentBulletTime(distance / Rules.getBulletSpeed(bulletPower))];
         double[] currentStats = stats[segmentVelocity(enemyLateralVelocity)];
@@ -56,7 +66,7 @@ public class VisitCountGun extends AbstractGuessFactorGun {
 
         int halfBot = (botIndexes-1)/2;
 
-        int bestindex = Math.round(AIM_BINS/2);	// initialize it to be in the middle, guessfactor 0.
+        int bestindex = (int)Math.round(AIM_BINS/2.0);	// initialize it to be in the middle, guessfactor 0.
         double currentMax = 0;
         for (int i=halfBot; i<currentStats.length-halfBot; i++) {
             double clusterStats = 0;
@@ -78,6 +88,17 @@ public class VisitCountGun extends AbstractGuessFactorGun {
 
     private int segmentBulletTime(double bullettime){
         return (int)MathUtils.scale(bullettime, 0, 53, 0, 11);
+    }
+
+    @Override
+    public double choosePower(Point2D.Double myLocation, double myEnergy) {
+        if (enemyLastEnergy == 0) return 2.98643;
+        if (getCollisionRate() > .8) return 2.9865;
+        if(myLocation.distance(enemyLocation) < 150) return 2.9875;
+        if(myEnergy < 10) return .1113;
+        if(getHitRate() > .5) return 2.95;
+        if(getHitRate() < .1) return .1111;
+        return MathUtils.scale(getHitRate(), .1, .5, .5, enemyLastBulletPower - .01);
     }
 
     @Override
