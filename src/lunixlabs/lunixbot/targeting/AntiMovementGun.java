@@ -18,12 +18,16 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
     private IMovement movement;
     private double lastEnergy = 100.0;
     private long lastTime = 0;
+    private double lastHeading = 0;
+    private double lastVelocity = 0;
     private double enemyLastVelocity = 0;
     private double enemyLastHeading = 0;
 
     protected Point2D.Double[] _predictions;
 
     protected double _inverseScannedAbsBearing;
+    protected double _lastgunangle;
+    protected Point2D.Double _lastLocation;
 
     public AntiMovementGun(IMovement movement) {
         this.movement = movement;
@@ -43,7 +47,10 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
 
         enemyLastVelocity = event.getVelocity();
         enemyLastHeading = event.getHeadingRadians();
+        _lastLocation = myLocation;
         lastTime = time;
+        lastHeading = myHeading;
+        lastVelocity = myVelocity;
 
         double scannedAbsoluteBearing = Utils.normalAbsoluteAngle(event.getBearingRadians() + myHeading + Math.PI);
 
@@ -60,7 +67,7 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
             event.getVelocity(),
             event.getHeadingRadians(),
             enemyLocation,
-            time
+            time-1
         );
     }
 
@@ -72,11 +79,31 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
         double maxTurning, moveDir;
         Double moveAngle;
 
+        IMovement movement = this.movement.deepClone();
+
+        double scannedAbsoluteBearing = Utils.normalAbsoluteAngle(absoluteBearingToEnemy + Math.PI);
+
+        movement.track(new ScannedRobotEvent(
+                        "fake",
+                        lastEnergy-bulletPower,
+                        Utils.normalRelativeAngle(scannedAbsoluteBearing - enemyLastHeading),
+                        enemyLocation.distance(myLocation),
+                        lastHeading,
+                        lastVelocity,
+                        false
+                ),
+                enemyLastVelocity,
+                enemyLastHeading,
+                enemyLocation,
+                lastTime
+        );
+
         this._predictions = new Point2D.Double[500];
         int counter = 0; // number of ticks in the future
 
-        do {    // the rest of these code comments are rozu's
-            //This should match the surfWave method to ensure correctly predicted movement
+        do {
+            //TODO: Check for wave hits (check wave collisions, and log hit)
+
             _predictions[counter] = predictedPosition;
             moveAngle = movement.suggestAngle(
                     predictedVelocity, predictedHeading, predictedPosition, lastTime + counter
@@ -114,8 +141,9 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
                     predictedVelocity);
 
             counter++;
-        } while(counter < myLocation.distance(enemyLocation) / Rules.getBulletSpeed(bulletPower) && counter < 500);
+        } while(counter < myLocation.distance(predictedPosition) / Rules.getBulletSpeed(bulletPower) && counter < 500);
 
+        _lastgunangle = MathUtils.absoluteBearing(myLocation, predictedPosition);
         return MathUtils.absoluteBearing(myLocation, predictedPosition);
     }
 
@@ -152,16 +180,16 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
     @Override
     public double choosePower(Point2D.Double myLocation, double myEnergy) {
         lastEnergy = myEnergy;
-        return .1;
+        return 2;
     }
 
     @Override
     public void onPaint(Graphics2D g, long time) {
-        super.onPaint(g, time);
+        //super.onPaint(g, time);
         g.setColor(Color.orange);
         movement.onPaint(g, time);
-        Point2D.Double lineend = MathUtils.project(enemyLocation, _inverseScannedAbsBearing, 800);
-        g.draw(new Line2D.Double(enemyLocation, lineend));
+        Point2D.Double lineend = MathUtils.project(_lastLocation, _lastgunangle, 800);
+        g.draw(new Line2D.Double(_lastLocation, lineend));
         for (Point2D.Double aDouble1 : _predictions)
             if (aDouble1 != null)
                 g.fillOval((int) aDouble1.x, (int) aDouble1.y, 5, 5);

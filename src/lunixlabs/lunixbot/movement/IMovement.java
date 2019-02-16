@@ -22,4 +22,6 @@ public interface IMovement {
     double getDodgeRate();
 
     void onPaint(java.awt.Graphics2D g, long time);
+
+    IMovement deepClone();
 }

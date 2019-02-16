@@ -283,4 +283,8 @@ abstract class AbstractSurfer implements IMovement {
             w.onPaint(g, time);
         }
     }
+
+    public IMovement deepClone() {
+        throw new RuntimeException();
+    }
 }

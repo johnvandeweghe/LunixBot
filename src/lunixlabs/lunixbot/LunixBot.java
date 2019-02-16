@@ -12,9 +12,10 @@ import java.awt.geom.Point2D;
 
 /**
  * TODO:
- * - Bullet Shadows
- * - DC-PIF Gun
+ * - Bullet Shadows in VC gun
+ * - DC-PIF Gun (Anti movement gun has PIF, should be a good base)
  * - PIF surfing
+ * - Anti gun movement (with Basic VC gun dodger, should be very good)
  */
 public class LunixBot extends AdvancedRobot
 {

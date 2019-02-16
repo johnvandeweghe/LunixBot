@@ -273,4 +273,15 @@ public class BasicSurfer implements IMovement {
             w.onPaint(g, time);
         }
     }
+
+    public IMovement deepClone() {
+        BasicSurfer basicSurfer = new BasicSurfer();
+        basicSurfer.enemyWaves = (ArrayList<BulletWave>) enemyWaves.clone();
+        basicSurfer.surfDirections = (ArrayList<Integer>) surfDirections.clone();
+        basicSurfer.surfAbsBearings = (ArrayList<Double>) surfAbsBearings.clone();
+        basicSurfer.enemyLocation = (Point2D.Double) enemyLocation.clone();
+        basicSurfer.surfStats = surfStats.clone();
+        basicSurfer.enemyEnergy = enemyEnergy;
+        return basicSurfer;
+    }
 }
