@@ -47,6 +47,16 @@ public class BulletWave {
         return initialTargetDistance / getVelocity();
     }
 
+    public final boolean checkAngleCollides(Point2D.Double targetLocation) {
+        double currentTargetAbsBearing = MathUtils.absoluteBearing(startLocation, targetLocation);
+        double currentAngle = Utils.normalRelativeAngle(currentTargetAbsBearing - initialTargetAbsBearing);
+
+        //Half of one bot in radians at the current distance (target location is center of bot)
+        double toleranceAngle = MathUtils.getBotWidthInRadians(startLocation.distance(targetLocation))/2;
+
+        return Math.abs(Utils.normalRelativeAngle(currentAngle - angle)) < toleranceAngle;
+    }
+
     public void onPaint(Graphics2D g, long time) {
 //            Point2D.Double endpoint = MathUtil.project(startLocation, initialTargetAbsBearing, initialTargetDistance);
 //            g.drawLine((int)startLocation.x, (int)startLocation.y, (int)endpoint.x, (int)endpoint.y);

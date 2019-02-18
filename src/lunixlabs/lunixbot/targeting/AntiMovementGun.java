@@ -79,6 +79,10 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
         double maxTurning, moveDir;
         Double moveAngle;
 
+        if(enemyLastEnergy == 0) {
+            return absoluteBearingToEnemy;
+        }
+
         IMovement movement = this.movement.deepClone();
 
         double scannedAbsoluteBearing = Utils.normalAbsoluteAngle(absoluteBearingToEnemy + Math.PI);
@@ -103,6 +107,20 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
 
         do {
             //TODO: Check for wave hits (check wave collisions, and log hit)
+            for(BulletWave bulletWave : myWaves) {
+                if (bulletWave.getDistanceTraveled(lastTime + counter)
+                        > bulletWave.startLocation.distance(predictedPosition) + 10
+                    && bulletWave.checkAngleCollides(predictedPosition)
+                ) {
+                    movement.logHit(
+                            fakeBullet(bulletWave, bulletWave.startLocation.distance(predictedPosition)),
+                            predictedVelocity,
+                            predictedHeading,
+                            predictedPosition,
+                            lastTime + counter
+                    );
+                }
+            }
 
             _predictions[counter] = predictedPosition;
             moveAngle = movement.suggestAngle(
@@ -167,9 +185,9 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
     protected void trackHit(BulletWave bulletWave) {
         super.trackHit(bulletWave);
         //long time = bulletWave.fireTime + (long)bulletWave.getBulletTimeToTarget();
-        Point2D.Double pos = MathUtils.project(bulletWave.startLocation, bulletWave.angle, bulletWave.startLocation.distance(enemyLocation)-15);
+
         movement.logHit(
-                new Bullet(bulletWave.angle, pos.x, pos.y, bulletWave.bulletPower, "blah", "blah", true, (int)(Math.random() * 10000)),
+                fakeBullet(bulletWave, bulletWave.startLocation.distance(enemyLocation)),
                 enemyLastVelocity,
                 enemyLastHeading,
                 enemyLocation,
@@ -177,10 +195,31 @@ public class AntiMovementGun extends AbstractGuessFactorGun {
         );
     }
 
+    private Bullet fakeBullet(BulletWave bulletWave, double distanceToEnemy)
+    {
+        //double absAngle = Utils.normalAbsoluteAngle(bulletWave.initialTargetAbsBearing - bulletWave.angle);
+        Point2D.Double pos = MathUtils.project(bulletWave.startLocation, bulletWave.angle, distanceToEnemy-15);
+        return new Bullet(bulletWave.angle, pos.x, pos.y, bulletWave.bulletPower, "blah", "blah", true, (int)(Math.random() * 10000));
+    }
+
     @Override
     public double choosePower(Point2D.Double myLocation, double myEnergy) {
         lastEnergy = myEnergy;
-        return 2;
+        if (enemyLastEnergy == 0)
+            return 2.98643;
+        if (getCollisionRate() > .8)
+            return 2.9865;
+        if(myLocation.distance(enemyLocation) < 150)
+            return 2.9875;
+        if(myEnergy < 10)
+            return .1113;
+        if (getHitRate() > .8)
+            return 3;
+        if (getHitRate() > .5)
+            return 2;
+        if(getHitRate() > .3)
+            return 1;
+        return .5;
     }
 
     @Override

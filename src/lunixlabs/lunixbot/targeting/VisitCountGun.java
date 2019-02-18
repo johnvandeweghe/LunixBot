@@ -53,7 +53,7 @@ public class VisitCountGun extends AbstractGuessFactorGun {
 //        double[] prettyStats = Arrays.stream(currentStats).map(d -> Math.round(d * 10000d) / 1000d).toArray();
 //        System.out.println(segmentVelocity(enemyLateralVelocity) + "::" + Arrays.toString(prettyStats));
 
-        double robotWidthAngle = Math.atan2(36.0, distance)*2;
+        double robotWidthAngle = MathUtils.getBotWidthInRadians(distance);
         double maxEscapeAngle = MathUtils.maxEscapeAngle(Rules.getBulletSpeed(bulletPower));
 
         double anglePerIndex = maxEscapeAngle * 2 / (double)AIM_BINS;

@@ -49,4 +49,8 @@ public final class MathUtils {
     public static double getMaxTurning(double velocity) {
         return Math.PI/720d*(40d - 3d*Math.abs(velocity));
     }
+
+    public static double getBotWidthInRadians(double distance) {
+        return Math.atan2(36.0, distance) * 2;
+    }
 }

@@ -73,14 +73,9 @@ abstract class AbstractGuessFactorGun implements ITargeting {
         double desiredDirection = MathUtils.absoluteBearing(bulletWave.startLocation, targetLocation);
         double angleOffset = Utils.normalRelativeAngle(desiredDirection - bulletWave.initialTargetAbsBearing);
 
-        //half of one bot
-        double toleranceAngle = Math.atan2(36.0, bulletWave.startLocation.distance(targetLocation));
-
-        if(Math.abs(Utils.normalRelativeAngle(angleOffset - bulletWave.angle)) < toleranceAngle) {
+        if(bulletWave.checkAngleCollides(targetLocation)) {
             trackHit(bulletWave);
         }
-
-
 
         double guessFactor =
                 Math.max(-1, Math.min(1,

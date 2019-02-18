@@ -28,7 +28,7 @@ public class LunixBot extends AdvancedRobot
             new AntiMovementGun(new BasicSurfer())
     };
 
-    private static int currentGun = 1;
+    private static int currentGun = 3;
 
     private double _goAngle;
 
@@ -87,28 +87,28 @@ public class LunixBot extends AdvancedRobot
             angleOffsets[i] = gun.chooseGunAngle(powers[i], myLocation, scannedAbsoluteBearing);
         }
 
-        if(getEnergy() > 80) {
-            if(currentGun != 1) {
-                System.out.println("Switching to Random gun.");
-            }
-            currentGun = 1;
-        } else {
-            for (int i = 0; i < guns.length; i++) {
-                if (guns[i].getHitRate() > guns[currentGun].getHitRate()) {
-                    currentGun = i;
-                    for(ITargeting gun : guns)
-                        System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
-                    System.out.println("Switching to gun #" + i);
-                }
-            }
-        }
+//        if(getEnergy() > 90 || guns[currentGun].getHitRate() < .05) {
+//            if(currentGun != 1) {
+//                System.out.println("Switching to Random gun.");
+//            }
+//            currentGun = 1;
+//        } else {
+//            for (int i = 0; i < guns.length; i++) {
+//                if (guns[i].getHitRate() > guns[currentGun].getHitRate()) {
+//                    currentGun = i;
+//                    for(ITargeting gun : guns)
+//                        System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
+//                    System.out.println("Switching to gun #" + i);
+//                }
+//            }
+//        }
 
         double gunAdjust = Utils.normalRelativeAngle(
                 angleOffsets[currentGun] - getGunHeadingRadians());
 
         setTurnGunRightRadians(gunAdjust);
 
-        if (getGunHeat() == 0 && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(powers[currentGun]) != null) {
+        if (getGunHeat() == 0 && powers[currentGun] < getEnergy() && gunAdjust < Math.atan2(9, e.getDistance()) && setFireBullet(powers[currentGun]) != null) {
             for (int i = 0; i < guns.length; i++) {
                 ITargeting gun = guns[i];
                 gun.trackShot(powers[i], angleOffsets[i], getVelocity(), getHeadingRadians(), myLocation, getTime());
