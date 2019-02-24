@@ -28,7 +28,7 @@ public class LunixBot extends AdvancedRobot
             new AntiMovementGun(new BasicSurfer())
     };
 
-    private static int currentGun = 3;
+    private static int currentGun = 1;
 
     private double _goAngle;
 
@@ -87,21 +87,21 @@ public class LunixBot extends AdvancedRobot
             angleOffsets[i] = gun.chooseGunAngle(powers[i], myLocation, scannedAbsoluteBearing);
         }
 
-//        if(getEnergy() > 90 || guns[currentGun].getHitRate() < .05) {
-//            if(currentGun != 1) {
-//                System.out.println("Switching to Random gun.");
-//            }
-//            currentGun = 1;
-//        } else {
-//            for (int i = 0; i < guns.length; i++) {
-//                if (guns[i].getHitRate() > guns[currentGun].getHitRate()) {
-//                    currentGun = i;
-//                    for(ITargeting gun : guns)
-//                        System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
-//                    System.out.println("Switching to gun #" + i);
-//                }
-//            }
-//        }
+        if(getEnergy() > 90 || guns[currentGun].getHitRate() < .05) {
+            if(currentGun != 1) {
+                System.out.println("Switching to Random gun.");
+            }
+            currentGun = 1;
+        } else {
+            for (int i = 0; i < guns.length; i++) {
+                if (guns[i].getHitRate() > guns[currentGun].getHitRate()) {
+                    currentGun = i;
+                    for(ITargeting gun : guns)
+                        System.out.println(gun.getClass().getName() + ": " + gun.getHitRate() + "%");
+                    System.out.println("Switching to gun #" + i);
+                }
+            }
+        }
 
         double gunAdjust = Utils.normalRelativeAngle(
                 angleOffsets[currentGun] - getGunHeadingRadians());
